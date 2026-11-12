@@ -123,9 +123,15 @@
   </section>
 
   <section class="card">
-    <h2>Samlet nysnø fra nå (cm)</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:4px">Mørk linje = median. Mørkt bånd = 50 % av medlemmene, lyst bånd = 80 %. Stiplete linjer viser hvor en modell slutter.</div>
-    <svg id="chartSnow" width="100%"></svg>
+    <h2>Nysnø per døgn (cm)</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:4px" id="barNote">Mørk søyle = median. Middels = 25 % av medlemmene gir minst så mye. Lys = 10 % gir minst så mye.</div>
+    <svg id="chartNew" width="100%"></svg>
+  </section>
+
+  <section class="card">
+    <h2>Snødybde (cm)</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:4px">Modellenes egen snødybde kl. 12. Mørk linje = median. Mørkt bånd = 50 % av medlemmene, lyst bånd = 80 %. Stiplete linjer viser hvor en modell slutter.</div>
+    <svg id="chartDepth" width="100%"></svg>
   </section>
 
   <section class="card">
@@ -468,7 +474,11 @@ function render(){
 
   renderKpis(per, ids, dates);
   renderGrid(per, ids, dates, key);
-  renderFan($('chartSnow'), dates, d => pooled(per, ids, 'cum', d), { unit:'cm', min0:true, ids, per });
+  renderBars($('chartNew'), dates, d => pooled(per, ids, 'daily', d), { ids, per });
+  const depthIds = ids.filter(id => per[id].dates.some(d => per[id].depth[d] && per[id].depth[d].length));
+  const depthDates = dates.filter(d => pooled(per, depthIds, 'depth', d).length);
+  if (depthDates.length) renderFan($('chartDepth'), depthDates, d => pooled(per, depthIds, 'depth', d), { unit:'cm', min0:true, ids: depthIds, per });
+  else { const sv = $('chartDepth'); sv.setAttribute('viewBox', '0 0 300 24'); sv.setAttribute('height', 24); sv.innerHTML = '<text x="0" y="16">Ingen av de valgte modellene leverer snødybde.</text>'; }
   renderFan($('chartTemp'), dates, d => pooled(per, ids, 'temp', d), { unit:'°C', zeroLine:true, ids, per, color:'#c0533a' });
 }
 
@@ -587,6 +597,51 @@ function renderFan(svg, dates, getArr, opt){
   s += `<polygon points="${band('p25','p75')}" fill="${color}" fill-opacity=".3"/>`;
   s += `<polyline points="${rows.map((r, i) => r.n ? `${x(i)},${y(r.p50)}` : '').filter(Boolean).join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`;
   svg.style.color = 'var(--muted)';
+  svg.innerHTML = s;
+}
+function renderBars(svg, dates, getArr, opt){
+  const W = Math.max(300, svg.clientWidth || 600), H = 200;
+  const L = 34, R = 8, T = 10, B = 26;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.style.color = 'var(--muted)';
+  if (!dates.length){ svg.innerHTML = ''; return; }
+  const rows = dates.map(d => { const a = getArr(d); return { n:a.length, p50:pct(a,.5), p75:pct(a,.75), p90:pct(a,.9) }; });
+  let hi = 0; for (const r of rows) if (r.n) hi = Math.max(hi, r.p90);
+  hi = Math.max(5, hi * 1.08);
+  const slot = (W - L - R) / dates.length, bw = Math.max(3, slot * 0.72);
+  const x = i => L + i * slot + (slot - bw) / 2;
+  const y = v => T + (hi - v) * (H - T - B) / hi;
+  const c = '#1d5fa8';
+  let s = '';
+  const step = niceStep(hi / 4);
+  for (let v = 0; v <= hi; v += step){
+    s += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity="${v === 0 ? .4 : .12}"/>`;
+    s += `<text x="${L-5}" y="${y(v)+4}" text-anchor="end">${+v.toFixed(1)}</text>`;
+  }
+  dates.forEach((d, i) => {
+    const di = dayInfo(d);
+    if (i === 0 || di.monday) s += `<text x="${x(i) + bw/2}" y="${H-8}" text-anchor="middle">${i === 0 ? 'i dag' : di.dm}</text>`;
+  });
+  let lab = 0;
+  for (const id of opt.ids){
+    const ds = opt.per[id].dates;
+    const lastI = dates.indexOf(ds[ds.length - 1]);
+    if (lastI >= 0 && lastI < dates.length - 1){
+      const lx = L + (lastI + 1) * slot;
+      s += `<line x1="${lx}" x2="${lx}" y1="${T}" y2="${H-B}" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="3 3"/>`;
+      s += `<text x="${lx+3}" y="${T+10+13*lab++}">${MODELS.find(m => m.id === id).name} slutt</text>`;
+    }
+  }
+  rows.forEach((r, i) => {
+    if (!r.n) return;
+    const tip = `${dayInfo(dates[i]).dm}: median ${r.p50.toFixed(1)} cm, 25 %: ${r.p75.toFixed(1)} cm, 10 %: ${r.p90.toFixed(1)} cm`;
+    s += `<g><title>${tip}</title>`;
+    for (const [v, o] of [[r.p90, .2], [r.p75, .45], [r.p50, 1]]){
+      if (v > 0.05) s += `<rect x="${x(i)}" y="${y(v)}" width="${bw}" height="${y(0) - y(v)}" fill="${c}" fill-opacity="${o}" rx="1.5"/>`;
+    }
+    s += '</g>';
+  });
   svg.innerHTML = s;
 }
 function niceStep(raw){
