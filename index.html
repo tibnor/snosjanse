@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snøsjanse – ensembleprognose 35 døgn</title>
+<style>
+  :root{
+    --bg:#f4f7fa; --card:#fff; --ink:#14212e; --muted:#5b6b7b; --line:#dde4ea;
+    --accent:#1d5fa8; --accent-soft:#e3eefa; --warn:#a35a00;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1720; --card:#16212d; --ink:#e6edf3; --muted:#93a4b5; --line:#263544; --accent:#6aa8ec; --accent-soft:#1b2f45; --warn:#f0a050; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{padding:18px 16px 6px;max-width:1200px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 2px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px}
+  main{max-width:1200px;margin:0 auto;padding:0 16px 40px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+  .tab{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 12px;border-radius:999px;font:inherit;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tab .x{opacity:.6;font-size:13px;padding:0 2px}
+  .tab .x:hover{opacity:1}
+  .tab.add{border-style:dashed;color:var(--muted)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+  .row{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;padding:6px 10px;cursor:pointer}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  label.ctl{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  input[type=number],input[type=text]{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+  input[type=number]{width:80px}
+  .btn{font:inherit;font-size:13px;padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .status{font-size:13px;color:var(--muted)}
+  .status .err{color:var(--warn)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .kpi .v{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .kpi .l{font-size:13px;color:var(--muted)}
+  .kpi .n{font-size:11px;color:var(--muted);margin-top:2px}
+  h2{font-size:16px;margin:0 0 8px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:separate;border-spacing:0;font-size:12px;font-variant-numeric:tabular-nums}
+  th,td{padding:0;text-align:center;white-space:nowrap}
+  thead th{position:sticky;top:0;background:var(--card);padding:5px 2px;border-bottom:1px solid var(--line);font-weight:500;min-width:38px}
+  thead th .dow{color:var(--muted);font-size:11px}
+  thead th .dm{font-weight:600}
+  th.lab{position:sticky;left:0;z-index:2;background:var(--card);text-align:left;padding:4px 8px;min-width:118px;font-weight:500;border-right:1px solid var(--line)}
+  thead th.lab{z-index:3}
+  td.c{height:28px;min-width:38px;border-bottom:1px solid var(--bg);border-right:1px solid var(--bg)}
+  td.val{color:var(--muted);height:24px}
+  .wk{border-left:2px solid var(--line) !important}
+  tr.grp th{background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;text-align:left;padding:4px 8px}
+  tr.grp td{background:var(--accent-soft)}
+  .legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+  .ramp{display:flex;border-radius:4px;overflow:hidden}
+  .ramp span{width:26px;height:12px}
+  svg text{font:11px system-ui,sans-serif;fill:var(--muted)}
+  details summary{cursor:pointer;font-weight:600}
+  details p,details li{font-size:13.5px;color:var(--ink)}
+  .muted{color:var(--muted)}
+  #addPanel{display:none}
+  #addPanel.open{display:block}
+  .results{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+  .results button{text-align:left;font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer}
+  .results button small{color:var(--muted)}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 0.8s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Snøsjanse</h1>
+  <div class="sub">Sannsynlighet for snø opptil 35 døgn frem, regnet ut fra hvert enkelt ensemblemedlem i ECMWF, NOAA GEFS og kanadiske GEM.</div>
+</header>
+<main>
+  <nav class="tabs" id="tabs"></nav>
+
+  <section class="card" id="addPanel">
+    <h2>Legg til sted</h2>
+    <form id="addForm" class="row">
+      <input type="text" id="addQuery" placeholder="Stedsnavn, eller «62.45, 6.25»" style="flex:1;min-width:200px">
+      <button class="btn primary" type="submit">Søk</button>
+      <button class="btn" type="button" id="addCancel">Avbryt</button>
+    </form>
+    <div class="results" id="addResults"></div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <div class="seg" id="modeSeg">
+        <button data-v="daily">Nysnø per døgn</button>
+        <button data-v="cum">Nysnø samlet fra nå</button>
+        <button data-v="depth">Snødybde</button>
+      </div>
+      <div class="seg" id="methodSeg" title="Hvordan nysnø regnes ut">
+        <button data-v="adj">Høydejustert</button>
+        <button data-v="raw">Rått modellsnøfall</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="ctl">Høyde (moh) <input type="number" id="elev" step="10"></label>
+      <span class="row" id="modelChecks" style="gap:12px"></span>
+      <button class="btn" id="refresh">Oppdater</button>
+      <label class="ctl"><input type="checkbox" id="perModel"> Vis hver modell</label>
+    </div>
+    <div class="status" id="status" style="margin-top:8px"></div>
+  </section>
+
+  <section class="cards" id="kpis"></section>
+
+  <section class="card">
+    <h2 id="gridTitle">Sannsynlighet</h2>
+    <div class="scroll"><table id="grid"></table></div>
+    <div class="legend">
+      <span>0 %</span><span class="ramp" id="ramp"></span><span>100 %</span>
+      <span style="margin-left:8px">Tallene i rutene er andelen ensemblemedlemmer som gir minst så mye.</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Samlet nysnø fra nå (cm)</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:4px">Mørk linje = median. Mørkt bånd = 50 % av medlemmene, lyst bånd = 80 %. Stiplete linjer viser hvor en modell slutter.</div>
+    <svg id="chartSnow" width="100%"></svg>
+  </section>
+
+  <section class="card">
+    <h2>Døgnmiddeltemperatur (°C)</h2>
+    <svg id="chartTemp" width="100%"></svg>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Om dataene og utregningen</summary>
+      <ul>
+        <li><b>Kilder:</b> ECMWF IFS ensemble (51 medlemmer, 15 døgn), NOAA GEFS 0,5° (31 medlemmer, 35 døgn) og ECCC GEM global ensemble (21 medlemmer, 16 døgn, 39 døgn fra mandags- og torsdagskjøringene). Rådata fra hvert medlem hentes fra modellsentrenes kjøringer via Open-Meteo sitt ensemble-API, siden ECMWF og NOAA bare leverer GRIB-filer som en nettleser ikke kan lese direkte. Ingen etterbehandling eller glatting er gjort av andre enn denne siden.</li>
+        <li><b>Sannsynlighet</b> = andelen av alle medlemmer (fra modellene du har valgt) som gir minst terskelverdien. Etter dag 15–16 er det bare GEFS (og GEM på mandager/torsdager) igjen, så tallene bygger på færre medlemmer og er mindre pålitelige.</li>
+        <li><b>Høydejustert</b> nysnø: nedbør × snøandel ut fra temperaturen i valgt høyde (all snø under 0 °C, lineær overgang til regn ved +2 °C), med 1 mm nedbør = 1 cm snø. Temperaturen er nedskalert til høyden du har valgt. Dette er som regel mer treffsikkert enn rått modellsnøfall for et sted ved sjøen eller et sted høyt oppe, fordi modellrutene er 25–50 km store og har en «gjennomsnittshøyde».</li>
+        <li><b>Rått modellsnøfall</b> er modellens egen snøvariabel i rutepunktet, uten høydejustering.</li>
+        <li><b>Snødybde</b> er modellenes egen snødybde kl. 12, som kun er en grov indikasjon: modellene kjenner ikke lokalt snødekke godt, og ikke alle modeller leverer den.</li>
+        <li>Grenseverdier: «Noe snø» = minst 1 cm. Prognoser lengre enn ca. 10 døgn har lav treffsikkerhet for enkeltdøgn; bruk heller «samlet fra nå» for lange horisonter.</li>
+      </ul>
+      <p class="muted">Data: ECMWF, NOAA, ECCC via <a href="https://open-meteo.com/">Open-Meteo</a> (CC BY 4.0). Stedssøk: Kartverket.</p>
+    </details>
+  </section>
+</main>
+
+<script>
+(() => {
+'use strict';
+
+const API = 'https://ensemble-api.open-meteo.com/v1/ensemble';
+const TZ = 'Europe/Oslo';
+const FORECAST_DAYS = 35;
+const SNOW_RATIO = 1.0;          // cm snø per mm nedbør
+const RAIN_T = 2.0;              // °C, over dette: bare regn
+const MODELS = [
+  { id:'ecmwf_ifs025', name:'ECMWF', full:'ECMWF IFS ensemble' },
+  { id:'gfs05',        name:'GEFS',  full:'NOAA GEFS 0,5°' },
+  { id:'gem_global',   name:'GEM',   full:'ECCC GEM ensemble' },
+];
+const THRESH = [
+  { v:1,  label:'Noe snø (≥1 cm)' },
+  { v:10, label:'≥ 10 cm' },
+  { v:50, label:'≥ 50 cm' },
+];
+const DEFAULT_LOCS = [
+  { id:'bogneset', name:'Bogneset', lat:62.4555, lon:6.2506, elev:10 },
+  { id:'almaslia', name:'Almåslia', lat:62.3958, lon:7.1972, elev:480 },
+];
+const DOW = ['søn','man','tir','ons','tor','fre','lør'];
+
+// ---------- lagring (frivillig) ----------
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+};
+
+let locs = store.get('snosjanse.locs', null) || DEFAULT_LOCS.map(l => ({...l}));
+const st = {
+  locId: (location.hash || '').slice(1) || store.get('snosjanse.loc', locs[0].id),
+  mode: store.get('snosjanse.mode', 'cum'),
+  method: store.get('snosjanse.method', 'adj'),
+  models: store.get('snosjanse.models', MODELS.map(m => m.id)),
+  perModel: store.get('snosjanse.perModel', false),
+};
+if (!locs.find(l => l.id === st.locId)) st.locId = locs[0].id;
+
+const cache = {};   // key -> { fetchedAt, models: {id: {data|error}} }
+const $ = id => document.getElementById(id);
+
+// ---------- tid ----------
+function nowKey(){
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', hourCycle:'h23' }).formatToParts(new Date());
+  const g = t => p.find(x => x.type === t).value;
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:00`;
+}
+function dayInfo(date){
+  const [y,m,d] = date.split('-').map(Number);
+  const wd = new Date(y, m-1, d).getDay();
+  return { dow: DOW[wd], dm: `${d}.${m}`, monday: wd === 1 };
+}
+
+// ---------- henting ----------
+function locKey(l){ return `${l.lat.toFixed(4)},${l.lon.toFixed(4)},${l.elev ?? ''}`; }
+
+async function fetchModel(loc, model){
+  let base = `${API}?latitude=${loc.lat}&longitude=${loc.lon}`;
+  if (loc.elev !== null && loc.elev !== undefined && loc.elev !== '') base += `&elevation=${loc.elev}`;
+  base += `&models=${model.id}&forecast_days=${FORECAST_DAYS}&timezone=${encodeURIComponent(TZ)}`;
+  let res = await fetch(base + '&hourly=precipitation,snowfall,temperature_2m,snow_depth');
+  if (!res.ok) res = await fetch(base + '&hourly=precipitation,snowfall,temperature_2m');
+  let j;
+  try { j = await res.json(); } catch(e){ throw new Error('ugyldig svar (HTTP ' + res.status + ')'); }
+  if (!res.ok || j.error) throw new Error(j.reason || ('HTTP ' + res.status));
+  return parseEnsemble(j);
+}
+
+function parseEnsemble(j){
+  const h = j.hourly || {};
+  const out = { time: h.time || [], members: {}, elevation: j.elevation };
+  const re = /^(precipitation|snowfall|temperature_2m|snow_depth)(?:_member(\d+))?(?:_[a-z][a-z0-9_]*)?$/;
+  for (const k of Object.keys(h)){
+    if (k === 'time') continue;
+    const m = k.match(re);
+    if (!m) continue;
+    const mem = m[2] ? parseInt(m[2], 10) : 0;
+    (out.members[mem] = out.members[mem] || {})[m[1]] = h[k];
+  }
+  return out;
+}
+
+async function loadLoc(loc, force){
+  const key = locKey(loc);
+  if (!force && cache[key]) return cache[key];
+  const entry = { fetchedAt: new Date(), models: {} };
+  await Promise.all(MODELS.map(async m => {
+    try { entry.models[m.id] = { data: await fetchModel(loc, m) }; }
+    catch(e){ entry.models[m.id] = { error: e.message || String(e) }; }
+  }));
+  cache[key] = entry;
+  return entry;
+}
+
+// ---------- beregning ----------
+function snowFrac(t){ return t <= 0 ? 1 : t >= RAIN_T ? 0 : 1 - t / RAIN_T; }
+
+// Returnerer { dates:[...], daily:{date:[cm per medlem]}, temp:{...}, depth:{...} }
+function summarizeModel(data, method){
+  const time = data.time;
+  const nk = nowKey();
+  let start = time.findIndex(t => t >= nk);
+  if (start < 0) return { dates:[], daily:{}, temp:{}, depth:{} };
+  const days = [];
+  for (let i = start; i < time.length; i++){
+    const d = time[i].slice(0, 10);
+    if (!days.length || days[days.length-1].date !== d) days.push({ date:d, idx:[] });
+    days[days.length-1].idx.push(i);
+  }
+  const memIds = Object.keys(data.members).map(Number).sort((a,b) => a-b);
+  // modellens horisont: siste tidspunkt med nedbør hos minst ett medlem
+  let last = -1;
+  for (const id of memIds){
+    const P = data.members[id].precipitation || data.members[id].snowfall || [];
+    for (let i = P.length - 1; i > last; i--) if (P[i] !== null && P[i] !== undefined){ last = i; break; }
+  }
+  const res = { dates:[], daily:{}, temp:{}, depth:{} };
+  for (const day of days){
+    const endIdx = day.idx[day.idx.length - 1];
+    if (last < endIdx - 3) break;
+    const snow = [], temp = [], depth = [];
+    let noonIdx = day.idx.find(i => time[i].endsWith('T12:00'));
+    if (noonIdx === undefined) noonIdx = day.idx[0];
+    for (const id of memIds){
+      const M = data.members[id];
+      const P = M.precipitation, S = M.snowfall, T = M.temperature_2m, D = M.snow_depth;
+      if (method === 'adj' && (!P || !T)) continue;
+      if (method === 'raw' && !S) continue;
+      // sjekk at medlemmet har data denne dagen
+      const ref = (method === 'adj' ? P : S);
+      let any = false; for (const i of day.idx) if (ref[i] != null){ any = true; break; }
+      if (!any) continue;
+      let s = 0, ts = 0, tn = 0, lastT = null;
+      // finn første gyldige temperatur bakover for interpolasjonsfri bruk
+      for (let i = day.idx[0]; i >= 0; i--) if (T && T[i] != null){ lastT = T[i]; break; }
+      for (const i of day.idx){
+        const t = T ? T[i] : null;
+        if (t != null){ ts += t; tn++; lastT = t; }
+        if (method === 'adj'){
+          const p = P[i];
+          if (p != null && p > 0 && lastT != null) s += p * snowFrac(lastT) * SNOW_RATIO;
+        } else {
+          const v = S[i];
+          if (v != null) s += v;
+        }
+      }
+      snow.push(s);
+      temp.push(tn ? ts / tn : NaN);
+      const dv = D ? D[noonIdx] : null;
+      if (dv != null) depth.push(dv * 100);
+    }
+    if (!snow.length) break;
+    res.dates.push(day.date);
+    res.daily[day.date] = snow;
+    res.temp[day.date] = temp.filter(x => !Number.isNaN(x));
+    res.depth[day.date] = depth;
+  }
+  // samlet fra nå (per medlem, samme rekkefølge)
+  res.cum = {};
+  let run = null;
+  for (const d of res.dates){
+    const a = res.daily[d];
+    const prev = run && run.length === a.length ? run : null;
+    run = a.map((v, k) => (prev ? prev[k] : 0) + v);
+    res.cum[d] = run.slice();
+  }
+  return res;
+}
+
+function prob(arr, v){
+  if (!arr || !arr.length) return null;
+  let n = 0; for (const x of arr) if (x >= v - 1e-9) n++;
+  return n / arr.length;
+}
+function pct(arr, q){
+  if (!arr || !arr.length) return NaN;
+  const s = arr.slice().sort((a,b) => a-b);
+  const p = (s.length - 1) * q, lo = Math.floor(p), hi = Math.ceil(p);
+  return s[lo] + (s[hi] - s[lo]) * (p - lo);
+}
+
+// ---------- tegning ----------
+function cellColor(p){
+  if (p === null) return { bg:'transparent', fg:'var(--muted)' };
+  // fra nesten hvit til dyp blå
+  const l = 97 - p * 66, s = 25 + p * 55;
+  return { bg:`hsl(212 ${s}% ${l}%)`, fg: p > 0.5 ? '#fff' : '#14212e' };
+}
+function fmtP(p){
+  if (p === null) return '';
+  if (p === 0) return '0';
+  if (p < 0.01) return '<1';
+  return Math.round(p * 100);
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderTabs(){
+  const t = $('tabs');
+  t.innerHTML = '';
+  for (const l of locs){
+    const b = document.createElement('button');
+    b.className = 'tab' + (l.id === st.locId ? ' on' : '');
+    b.innerHTML = esc(l.name) + (DEFAULT_LOCS.find(d => d.id === l.id) ? '' : ' <span class="x" title="Fjern">✕</span>');
+    b.onclick = e => {
+      if (e.target.classList.contains('x')){
+        locs = locs.filter(x => x.id !== l.id); store.set('snosjanse.locs', locs);
+        if (st.locId === l.id) st.locId = locs[0].id;
+        renderTabs(); refresh(); return;
+      }
+      st.locId = l.id; store.set('snosjanse.loc', l.id);
+      try { history.replaceState(null, '', '#' + l.id); } catch(e){}
+      renderTabs(); refresh();
+    };
+    t.appendChild(b);
+  }
+  const add = document.createElement('button');
+  add.className = 'tab add'; add.textContent = '+ Legg til sted';
+  add.onclick = () => { $('addPanel').classList.add('open'); $('addQuery').focus(); };
+  t.appendChild(add);
+}
+
+function renderControls(){
+  for (const [segId, key] of [['modeSeg','mode'],['methodSeg','method']]){
+    for (const b of $(segId).querySelectorAll('button')){
+      b.classList.toggle('on', b.dataset.v === st[key]);
+      b.onclick = () => { st[key] = b.dataset.v; store.set('snosjanse.' + key, st[key]); renderControls(); render(); };
+    }
+  }
+  $('methodSeg').style.opacity = st.mode === 'depth' ? .45 : 1;
+  const mc = $('modelChecks');
+  if (!mc.childElementCount){
+    for (const m of MODELS){
+      const lab = document.createElement('label'); lab.className = 'ctl';
+      lab.innerHTML = `<input type="checkbox" value="${m.id}"> ${m.name}`;
+      const cb = lab.querySelector('input');
+      cb.onchange = () => {
+        st.models = [...mc.querySelectorAll('input:checked')].map(x => x.value);
+        store.set('snosjanse.models', st.models); render();
+      };
+      mc.appendChild(lab);
+    }
+  }
+  for (const cb of mc.querySelectorAll('input')) cb.checked = st.models.includes(cb.value);
+  $('perModel').checked = st.perModel;
+  const loc = curLoc();
+  $('elev').value = loc.elev ?? '';
+}
+
+function curLoc(){ return locs.find(l => l.id === st.locId) || locs[0]; }
+
+let current = null; // { loc, entry }
+
+async function refresh(force){
+  const loc = curLoc();
+  renderControls();
+  $('status').innerHTML = '<span class="spin"></span>Henter ensembleprognoser for ' + esc(loc.name) + ' …';
+  try {
+    const entry = await loadLoc(loc, force);
+    if (curLoc() !== loc) return;
+    current = { loc, entry };
+    render();
+  } catch(e){
+    $('status').innerHTML = '<span class="err">Feil: ' + esc(e.message) + '</span>';
+  }
+}
+
+function computeAll(){
+  const { entry } = current;
+  const per = {};
+  for (const m of MODELS){
+    const r = entry.models[m.id];
+    if (r && r.data) per[m.id] = summarizeModel(r.data, st.method);
+  }
+  return per;
+}
+
+function pooled(per, ids, key, date){
+  let a = [];
+  for (const id of ids){ const s = per[id]; if (s && s[key][date]) a = a.concat(s[key][date]); }
+  return a;
+}
+
+function render(){
+  if (!current) return;
+  const { loc, entry } = current;
+  const per = computeAll();
+  const ids = st.models.filter(id => per[id] && per[id].dates.length);
+
+  // status
+  const parts = MODELS.map(m => {
+    const r = entry.models[m.id];
+    if (!r) return '';
+    if (r.error) return `<span class="err">${m.name}: ${esc(r.error)}</span>`;
+    const s = per[m.id];
+    const n = s && s.dates.length ? (s.daily[s.dates[0]] || []).length : 0;
+    return `${m.name}: ${n} medl., ${s ? s.dates.length : 0} døgn`;
+  }).filter(Boolean);
+  const anyData = Object.values(entry.models).find(r => r.data);
+  const gridElev = anyData ? anyData.data.elevation : null;
+  $('status').innerHTML = `Hentet ${entry.fetchedAt.toLocaleTimeString('no-NO', {hour:'2-digit', minute:'2-digit'})} · ${parts.join(' · ')}` +
+    (gridElev != null ? ` · beregnet for ${Math.round(gridElev)} moh` : '');
+
+  // datoer
+  const dateSet = new Set();
+  for (const id of ids) for (const d of per[id].dates) dateSet.add(d);
+  const dates = [...dateSet].sort();
+
+  const key = st.mode === 'daily' ? 'daily' : st.mode === 'cum' ? 'cum' : 'depth';
+  $('gridTitle').textContent = {
+    daily: 'Sannsynlighet for nysnø i løpet av døgnet',
+    cum: 'Sannsynlighet for så mye nysnø totalt fra nå og til og med dagen',
+    depth: 'Sannsynlighet for snødybde på bakken (modellens snødybde kl. 12)',
+  }[st.mode];
+
+  renderKpis(per, ids, dates);
+  renderGrid(per, ids, dates, key);
+  renderFan($('chartSnow'), dates, d => pooled(per, ids, 'cum', d), { unit:'cm', min0:true, ids, per });
+  renderFan($('chartTemp'), dates, d => pooled(per, ids, 'temp', d), { unit:'°C', zeroLine:true, ids, per, color:'#c0533a' });
+}
+
+function renderKpis(per, ids, dates){
+  const k = $('kpis');
+  if (!dates.length){ k.innerHTML = ''; return; }
+  const at = n => dates[Math.min(n, dates.length) - 1];
+  const items = [
+    { d: at(3),  v: 1,  l: 'Noe snø innen 3 døgn' },
+    { d: at(7),  v: 10, l: '≥ 10 cm innen 7 døgn' },
+    { d: at(21), v: 10, l: `≥ 10 cm innen ${Math.min(21, dates.length)} døgn` },
+    { d: at(dates.length), v: 50, l: `≥ 50 cm innen ${dates.length} døgn` },
+  ];
+  k.innerHTML = items.map(it => {
+    const a = pooled(per, ids, 'cum', it.d);
+    const p = prob(a, it.v);
+    return `<div class="kpi"><div class="v">${p === null ? '–' : fmtP(p) + ' %'}</div><div class="l">${it.l}</div><div class="n">${a.length} medlemmer · nysnø, ${st.method === 'adj' ? 'høydejustert' : 'rått'}</div></div>`;
+  }).join('');
+}
+
+function renderGrid(per, ids, dates, key){
+  const g = $('grid');
+  if (!dates.length){ g.innerHTML = '<tr><td style="padding:12px">Ingen data for valgte modeller.</td></tr>'; return; }
+  const info = dates.map(dayInfo);
+  let h = '<thead><tr><th class="lab">Dato</th>';
+  info.forEach((x, i) => { h += `<th class="${x.monday && i ? 'wk' : ''}"><div class="dow">${i === 0 ? 'i dag' : x.dow}</div><div class="dm">${x.dm}</div></th>`; });
+  h += '</tr></thead><tbody>';
+
+  const block = (title, src) => {
+    let b = `<tr class="grp"><th class="lab">${esc(title)}</th>${dates.map((_, i) => `<td class="${info[i].monday && i ? 'wk' : ''}"></td>`).join('')}</tr>`;
+    for (const t of THRESH){
+      b += `<tr><th class="lab">${t.label}</th>`;
+      dates.forEach((d, i) => {
+        const a = src(key, d);
+        const p = a.length ? prob(a, t.v) : null;
+        const c = cellColor(p);
+        b += `<td class="c${info[i].monday && i ? ' wk' : ''}" style="background:${c.bg};color:${c.fg}" title="${a.length} medlemmer">${fmtP(p)}</td>`;
+      });
+      b += '</tr>';
+    }
+    // median
+    b += `<tr><th class="lab muted">Median ${key === 'depth' ? 'snødybde' : 'nysnø'} (cm)</th>`;
+    dates.forEach((d, i) => { const a = src(key, d); const m = pct(a, .5); b += `<td class="val${info[i].monday && i ? ' wk' : ''}">${Number.isNaN(m) ? '' : m < 10 ? m.toFixed(1) : Math.round(m)}</td>`; });
+    b += '</tr>';
+    b += `<tr><th class="lab muted">Temp. median (°C)</th>`;
+    dates.forEach((d, i) => { const a = src('temp', d); const m = pct(a, .5); b += `<td class="val${info[i].monday && i ? ' wk' : ''}">${Number.isNaN(m) ? '' : m.toFixed(0)}</td>`; });
+    b += '</tr>';
+    b += `<tr><th class="lab muted">Antall medlemmer</th>`;
+    dates.forEach((d, i) => { const a = src(key, d); b += `<td class="val${info[i].monday && i ? ' wk' : ''}" style="font-size:10px">${a.length || ''}</td>`; });
+    b += '</tr>';
+    return b;
+  };
+
+  const names = ids.map(id => MODELS.find(m => m.id === id).name).join(' + ');
+  h += block('Alle valgte modeller (' + names + ')', (k, d) => pooled(per, ids, k, d));
+  if (st.perModel){
+    for (const id of ids){
+      const m = MODELS.find(x => x.id === id);
+      h += block(m.full, (k, d) => (per[id][k][d] || []));
+    }
+  }
+  h += '</tbody>';
+  g.innerHTML = h;
+
+  const ramp = $('ramp');
+  if (!ramp.childElementCount) ramp.innerHTML = [0,.2,.4,.6,.8,1].map(p => `<span style="background:${cellColor(p).bg}"></span>`).join('');
+}
+
+function renderFan(svg, dates, getArr, opt){
+  const W = Math.max(300, svg.clientWidth || 600), H = 200;
+  const L = 38, R = 10, T = 10, B = 26;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  if (!dates.length){ svg.innerHTML = ''; return; }
+  const rows = dates.map(d => {
+    const a = getArr(d);
+    return { n:a.length, p10:pct(a,.1), p25:pct(a,.25), p50:pct(a,.5), p75:pct(a,.75), p90:pct(a,.9) };
+  });
+  let lo = Infinity, hi = -Infinity;
+  for (const r of rows) if (r.n){ lo = Math.min(lo, r.p10); hi = Math.max(hi, r.p90); }
+  if (!isFinite(lo)){ svg.innerHTML = ''; return; }
+  if (opt.min0) lo = 0;
+  if (opt.zeroLine){ lo = Math.min(lo, -2); hi = Math.max(hi, 2); }
+  if (hi - lo < 5) hi = lo + 5;
+  const pad = (hi - lo) * 0.06; hi += pad; if (!opt.min0) lo -= pad;
+  const x = i => L + (dates.length === 1 ? 0 : i * (W - L - R) / (dates.length - 1));
+  const y = v => T + (hi - v) * (H - T - B) / (hi - lo);
+  const color = opt.color || '#1d5fa8';
+  const band = (a, b) => {
+    const pts = rows.map((r, i) => r.n ? `${x(i)},${y(r[a])}` : null).filter(Boolean);
+    const back = rows.map((r, i) => r.n ? `${x(i)},${y(r[b])}` : null).filter(Boolean).reverse();
+    return pts.concat(back).join(' ');
+  };
+  let s = '';
+  // rutenett
+  const step = niceStep((hi - lo) / 4);
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step){
+    s += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity="${v === 0 && opt.zeroLine ? .5 : .12}"/>`;
+    s += `<text x="${L-5}" y="${y(v)+4}" text-anchor="end">${+v.toFixed(1)}</text>`;
+  }
+  dates.forEach((d, i) => {
+    const di = dayInfo(d);
+    if (i === 0 || di.monday) s += `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${i === 0 ? 'i dag' : di.dm}</text>`;
+  });
+  // modellslutt
+  let lab = 0;
+  for (const id of opt.ids){
+    const ds = opt.per[id].dates;
+    const lastI = dates.indexOf(ds[ds.length - 1]);
+    if (lastI >= 0 && lastI < dates.length - 1){
+      s += `<line x1="${x(lastI)}" x2="${x(lastI)}" y1="${T}" y2="${H-B}" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="3 3"/>`;
+      s += `<text x="${x(lastI)+3}" y="${T+10+13*lab++}">${MODELS.find(m => m.id === id).name} slutt</text>`;
+    }
+  }
+  s += `<polygon points="${band('p10','p90')}" fill="${color}" fill-opacity=".15"/>`;
+  s += `<polygon points="${band('p25','p75')}" fill="${color}" fill-opacity=".3"/>`;
+  s += `<polyline points="${rows.map((r, i) => r.n ? `${x(i)},${y(r.p50)}` : '').filter(Boolean).join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`;
+  svg.style.color = 'var(--muted)';
+  svg.innerHTML = s;
+}
+function niceStep(raw){
+  const p = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+  for (const m of [1, 2, 5, 10]) if (raw <= m * p) return m * p;
+  return 10 * p;
+}
+
+// ---------- legg til sted ----------
+async function searchPlace(q){
+  const m = q.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*$/);
+  if (m) return [{ name: q.trim(), lat: parseFloat(m[1].replace(',', '.')), lon: parseFloat(m[2].replace(',', '.')), desc:'koordinater' }];
+  const out = [];
+  try {
+    const r = await fetch(`https://ws.geonorge.no/stedsnavn/v1/navn?sok=${encodeURIComponent(q)}&fuzzy=true&utkoordsys=4258&treffPerSide=15`);
+    const j = await r.json();
+    for (const n of (j.navn || [])){
+      const name = (n.stedsnavn && n.stedsnavn[0] && n.stedsnavn[0]['skrivemåte']) || n['skrivemåte'] || q;
+      const rp = n.representasjonspunkt || {};
+      const lat = rp.nord, lon = rp['øst'];
+      if (lat == null || lon == null) continue;
+      out.push({ name, lat, lon, desc: [n.navneobjekttype, (n.kommuner || []).map(k => k.kommunenavn).join(', ')].filter(Boolean).join(' · ') });
+    }
+  } catch(e){}
+  if (!out.length){
+    try {
+      const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=10&language=no`);
+      const j = await r.json();
+      for (const x of (j.results || [])) out.push({ name:x.name, lat:x.latitude, lon:x.longitude, elev:x.elevation, desc:[x.admin2, x.admin1, x.country].filter(Boolean).join(', ') });
+    } catch(e){}
+  }
+  return out;
+}
+async function lookupElevation(lat, lon){
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`);
+    const j = await r.json();
+    return j.elevation && j.elevation[0] != null ? Math.round(j.elevation[0]) : null;
+  } catch(e){ return null; }
+}
+$('addForm').onsubmit = async e => {
+  e.preventDefault();
+  const q = $('addQuery').value.trim();
+  if (!q) return;
+  const box = $('addResults');
+  box.innerHTML = '<div class="status"><span class="spin"></span>Søker …</div>';
+  const res = await searchPlace(q);
+  if (!res.length){ box.innerHTML = '<div class="status">Fant ingen steder. Prøv et annet navn eller skriv koordinater som «62.45, 6.25».</div>'; return; }
+  box.innerHTML = '';
+  for (const r of res){
+    const b = document.createElement('button');
+    b.innerHTML = `${esc(r.name)} <small>${esc(r.desc || '')} · ${r.lat.toFixed(3)}, ${r.lon.toFixed(3)}</small>`;
+    b.onclick = async () => {
+      b.disabled = true;
+      const elev = r.elev != null ? Math.round(r.elev) : await lookupElevation(r.lat, r.lon);
+      const loc = { id: 'p' + Date.now().toString(36), name: r.name, lat: +r.lat, lon: +r.lon, elev };
+      locs.push(loc); store.set('snosjanse.locs', locs);
+      st.locId = loc.id; store.set('snosjanse.loc', loc.id);
+      $('addPanel').classList.remove('open'); box.innerHTML = ''; $('addQuery').value = '';
+      renderTabs(); refresh();
+    };
+    box.appendChild(b);
+  }
+};
+$('addCancel').onclick = () => { $('addPanel').classList.remove('open'); $('addResults').innerHTML = ''; };
+
+// ---------- øvrige kontroller ----------
+$('elev').onchange = () => {
+  const v = $('elev').value.trim();
+  const loc = curLoc();
+  loc.elev = v === '' ? null : Math.round(+v);
+  store.set('snosjanse.locs', locs);
+  refresh();
+};
+$('refresh').onclick = () => refresh(true);
+$('perModel').onchange = () => { st.perModel = $('perModel').checked; store.set('snosjanse.perModel', st.perModel); render(); };
+window.addEventListener('hashchange', () => {
+  const id = location.hash.slice(1);
+  if (locs.find(l => l.id === id) && id !== st.locId){ st.locId = id; renderTabs(); refresh(); }
+});
+let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 200); });
+
+renderTabs();
+refresh();
+})();
+</script>
+</body>
+</html>
